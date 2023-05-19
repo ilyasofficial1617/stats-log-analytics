@@ -2,7 +2,8 @@ import warnings
 import pandas as pd
 import csv
 import locale
-import bitmath
+#import bitmath
+from humanfriendly import format_size, parse_size
 
 container_name = ['webapp','worker','broker','webodm-node-odm-1','db']
 
@@ -45,15 +46,27 @@ def parse_docker_stats_to_pandas(filename:str):
             #print(line)
             warnings.warn("this line doesn't conform to template")
 
-        
+    #create dataframe
     df = pd.DataFrame(data,columns=['timestamp','container_id','name','cpu_percent','mem','mem_percent'])
+    #turn string timestamp to datetime
     df['timestamp'] = pd.to_datetime(df.timestamp ,format='%d_%b_%Y_%H_%M_%S')
-
+    #turn cpu percent and mem percent to numeric
     df['cpu_percent'] = pd.to_numeric(df.cpu_percent, errors='coerce')
     df['mem_percent'] = pd.to_numeric(df.mem_percent, errors='coerce')
+    #drop invalid 
     df = df.dropna()
 
+    #turn string memory to bytes
     df['mem'] = df['mem'].apply(human2bytes)
+
+    #return(df)
+    #if there are multiple, choose the max value
+    b = df.groupby(['timestamp','name']).max()
+    #drop row if the name is not all exist
+    mask=b.unstack().isna().any(1)  
+    c=b.loc[~b.index.get_level_values(0).isin(mask[mask].index)]
+    
+    df = c.reset_index()
 
     return(df)
 
@@ -95,7 +108,15 @@ def parse_docker_pssize_to_pandas(filename:str):
 
     df['size'] = df['size'].apply(human2bytes)
     df['size_virtual'] = df['size_virtual'].apply(human2bytes)
-    
+
+    #return(df)
+    #if there are multiple, choose the max value
+    b = df.groupby(['timestamp','name']).max()
+    # reset it 
+    c = b.reset_index()
+
+    df = c
+
     return(df)
 
 def parse_nvidiasmi_to_pandas(filename:str):
@@ -147,7 +168,8 @@ def parse_nvidiasmi_to_pandas(filename:str):
     return df
 
 def human2bytes(hum:str):
-    return(bitmath.parse_string(hum))
+    return parse_size(hum)
+    #return(bitmath.parse_string(hum))
 
 def read_large_file(filename):
     with open(filename, "r") as f:
@@ -155,9 +177,10 @@ def read_large_file(filename):
             yield line
 
 if __name__ == "__main__":
-    dockerstats = parse_docker_stats_to_pandas("data/dockerstats.txt")
-    print(dockerstats)
-    dockerpssize = parse_docker_pssize_to_pandas("data/dockerpssize.txt")
-    print(dockerpssize)
-    nvidiasmi = parse_nvidiasmi_to_pandas("data/nvidiasmi.txt")
-    print(nvidiasmi)
+    pass
+    #dockerstats = parse_docker_stats_to_pandas("data/dockerstats.txt")
+    #print(dockerstats)
+    #dockerpssize = parse_docker_pssize_to_pandas("data/dockerpssize.txt")
+    #print(dockerpssize)
+    #nvidiasmi = parse_nvidiasmi_to_pandas("data/nvidiasmi.txt")
+    #print(nvidiasmi)
